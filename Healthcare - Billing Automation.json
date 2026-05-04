@@ -1,0 +1,928 @@
+{
+  "name": "Healthcare Billing AI \u2014 Scored Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1cs0aw6JXT8ahF0kqsHHLlQSwAyXS8Slx",
+          "mode": "list",
+          "cachedResultName": "Bills",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1cs0aw6JXT8ahF0kqsHHLlQSwAyXS8Slx"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "7ef0c282-3d8b-47a2-aba6-843747cb455f",
+      "name": "New Billing Case",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -6208,
+        -144
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "V4CI4AGP1joRyjTy",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "003fe785-8d37-4074-9118-ab379a809723",
+      "name": "Download File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -5984,
+        -144
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "V4CI4AGP1joRyjTy",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $('New Billing Case').first().json.id }}/copy",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"name\": \"tmp_bill_extract\", \"mimeType\": \"application/vnd.google-apps.document\" }",
+        "options": {}
+      },
+      "id": "5a73635d-3da8-4c86-8d56-169bdaadbe2b",
+      "name": "Copy Bill \u2192 Google Doc",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -5760,
+        -144
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "V4CI4AGP1joRyjTy",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.id }}/export?mimeType=text%2Fplain",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "228f3bc7-d353-467a-8203-f8b91f71db8c",
+      "name": "Export Bill as Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -5536,
+        -144
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "V4CI4AGP1joRyjTy",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOncePerItem"
+      },
+      "id": "5d708a6c-0192-4537-a968-20edfa1df5df",
+      "name": "Extract & Validate Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5312,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond_valid",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d5b1352f-f426-4766-9db6-e34e92d4d1d1",
+      "name": "IF: Text Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.1,
+      "position": [
+        -5088,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1cgDOvviJdZbBGyX7LrIEBv3pPeaeY8qXEaEPbnxtVJg",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "AuditLog",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "File ID": "={{ $json.fileId }}",
+            "File Name": "={{ $json.fileName }}",
+            "Status": "=INVALID_BILL",
+            "Score": "=0",
+            "Notes": "={{ $json.reason }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "85444bd5-f333-4a89-9431-4702a02c0ef4",
+      "name": "Log Invalid Bill",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        -4864,
+        144
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TlquvcD2o2GFmtbb",
+          "name": "Sheets - Resume Scorer"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "YOUR_GEMINI_API_KEY"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"role\": \"user\",\n    \"parts\": [{\n      \"text\": {{ JSON.stringify(\"You are a medical billing specialist. Extract all billable items from this healthcare bill.\\n\\nReturn ONLY valid JSON \u2014 no markdown, no preamble:\\n{\\n  \\\"patient_id\\\": \\\"string or null\\\",\\n  \\\"visit_date\\\": \\\"string or null\\\",\\n  \\\"provider\\\": \\\"string or null\\\",\\n  \\\"diagnosis_codes\\\": [\\\"ICD-10 codes\\\"],\\n  \\\"procedure_codes\\\": [\\\"CPT codes\\\"],\\n  \\\"line_items\\\": [{\\\"description\\\": \\\"\\\", \\\"quantity\\\": 0, \\\"unit_price\\\": 0, \\\"total\\\": 0}],\\n  \\\"total_billed\\\": 0,\\n  \\\"insurance_type\\\": \\\"string or null\\\",\\n  \\\"facility_type\\\": \\\"inpatient|outpatient|emergency|clinic\\\"\\n}\\n\\nBILL TEXT:\\n\" + $json.billText) }}\n    }]\n  }],\n  \"generationConfig\": { \"maxOutputTokens\": 1500, \"temperature\": 0.1 }\n}",
+        "options": {
+          "response": {
+            "response": {}
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "d6718a22-a491-4ea3-97c2-956c38cec649",
+      "name": "AI: Extract Billable Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -4864,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOncePerItem"
+      },
+      "id": "185ecc55-41e8-483c-9ecc-6e4b567e7fe2",
+      "name": "Parse: Billable Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4640,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "YOUR_GEMINI_API_KEY"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"role\": \"user\",\n    \"parts\": [{\n      \"text\": {{ JSON.stringify(\"You are a medical coding compliance expert. Review these extracted billing codes and line items for accuracy and compliance.\\n\\nPre-extracted data:\\n\" + JSON.stringify({diagnosis_codes: $json.diagnosisCodes, procedure_codes: $json.procedureCodes, line_items: $json.lineItems, facility_type: $json.facilityType, insurance_type: $json.insuranceType}) + \"\\n\\nReturn ONLY valid JSON:\\n{\\n  \\\"code_accuracy_score\\\": 0-100,\\n  \\\"compliance_flags\\\": [\\\"list of compliance issues\\\"],\\n  \\\"unbundling_risk\\\": true/false,\\n  \\\"upcoding_risk\\\": true/false,\\n  \\\"missing_codes\\\": [\\\"suggested missing codes\\\"],\\n  \\\"duplicate_codes\\\": [\\\"duplicate entries found\\\"],\\n  \\\"modifier_issues\\\": [\\\"modifier problems\\\"],\\n  \\\"recommended_corrections\\\": [\\\"specific corrections\\\"]\\n}\") }}\n    }]\n  }],\n  \"generationConfig\": { \"maxOutputTokens\": 1200, \"temperature\": 0.1 }\n}",
+        "options": {
+          "response": {
+            "response": {}
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "a7ef4ac8-182c-41f0-afe7-ab330889752a",
+      "name": "AI: Code Mapping & Compliance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -4416,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOncePerItem"
+      },
+      "id": "5cf1184c-8539-484a-b930-eaf2af884734",
+      "name": "Parse: Code Compliance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4192,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOncePerItem"
+      },
+      "id": "2893c71a-764b-4599-bc40-44cadeedd5dc",
+      "name": "Validation Layer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3968,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "YOUR_GEMINI_API_KEY"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"role\": \"user\",\n    \"parts\": [{\n      \"text\": {{ JSON.stringify(\"You are a healthcare claims denial prevention specialist. Assess denial risk for this billing claim.\\n\\nClaim data:\\n\" + JSON.stringify({diagnosis_codes: $json.diagnosisCodes, procedure_codes: $json.procedureCodes, total_billed: $json.totalBilled, insurance_type: $json.insuranceType, facility_type: $json.facilityType, compliance_flags: $json.complianceFlags, unbundling_risk: $json.unbundlingRisk, upcoding_risk: $json.upcodingRisk}) + \"\\n\\nReturn ONLY valid JSON:\\n{\\n  \\\"denial_probability\\\": 0.0-1.0,\\n  \\\"denial_reasons\\\": [\\\"top reasons this could be denied\\\"],\\n  \\\"payer_specific_risks\\\": [\\\"payer-specific issues\\\"],\\n  \\\"documentation_gaps\\\": [\\\"missing documentation\\\"],\\n  \\\"appeal_strength\\\": \\\"strong|moderate|weak\\\",\\n  \\\"recommended_actions\\\": [\\\"actions before submission\\\"],\\n  \\\"estimated_reimbursement_rate\\\": 0.0-1.0\\n}\") }}\n    }]\n  }],\n  \"generationConfig\": { \"maxOutputTokens\": 1200, \"temperature\": 0.2 }\n}",
+        "options": {
+          "response": {
+            "response": {}
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "34a8680b-51d1-49d3-8698-2e129544d2c4",
+      "name": "AI: Denial Risk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3744,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOncePerItem"
+      },
+      "id": "dffdea06-1c04-4fbf-89c5-6968d3180444",
+      "name": "Parse: Denial Risk",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3520,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOncePerItem"
+      },
+      "id": "e80fd041-f586-4a86-8d1e-98361cec7d98",
+      "name": "Scoring Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3296,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "auto_submit",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Auto Submit"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "human_review",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Human Review"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "hold_and_correct",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Hold & Correct"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Reject"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "75cd6ce4-8620-4fd9-9c5e-273e18600443",
+      "name": "Decision Node",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -3072,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOncePerItem"
+      },
+      "id": "e8ebbf00-a91b-4d48-a535-52cef6b0bb74",
+      "name": "Insights Generator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3072,
+        -464
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1cgDOvviJdZbBGyX7LrIEBv3pPeaeY8qXEaEPbnxtVJg",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Billing",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.scoredAt }}",
+            "File ID": "={{ $json.fileId }}",
+            "File Name": "={{ $json.fileName }}",
+            "Patient ID": "={{ $json.patientId }}",
+            "Visit Date": "={{ $json.visitDate }}",
+            "Provider": "={{ $json.provider }}",
+            "Facility Type": "={{ $json.facilityType }}",
+            "Insurance Type": "={{ $json.insuranceType }}",
+            "Total Billed": "={{ $json.totalBilled }}",
+            "Est Reimbursement": "={{ $json.estReimbursement }}",
+            "Final Score": "={{ $json.finalScore }}",
+            "Tier": "={{ $json.tier }}",
+            "Action": "={{ $json.action }}",
+            "Score Breakdown": "={{ $json.scoreBreakdown }}",
+            "Validation Status": "={{ $json.validationStatus }}",
+            "Validation Flags": "={{ ($json.validationFlags||[]).join(' | ') }}",
+            "Denial Probability": "={{ $json.denialProbability }}",
+            "Denial Reasons": "={{ ($json.denialReasons||[]).join(' | ') }}",
+            "Appeal Strength": "={{ $json.appealStrength }}",
+            "Doc Gaps": "={{ ($json.documentationGaps||[]).join(' | ') }}",
+            "Recommended Actions": "={{ ($json.recommendedActions||[]).join(' | ') }}",
+            "Compliance Flags": "={{ ($json.complianceFlags||[]).join(' | ') }}"
+          },
+          "matchingColumns": [
+            "File ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "62714a74-2753-4413-a8e0-ca53986dd2b4",
+      "name": "Store Billing Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        -2848,
+        -144
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TlquvcD2o2GFmtbb",
+          "name": "Sheets - Resume Scorer"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1cgDOvviJdZbBGyX7LrIEBv3pPeaeY8qXEaEPbnxtVJg",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Insights",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Total Claims": "={{ $json.insights.totalClaims }}",
+            "Total Billed": "={{ $json.insights.totalBilled }}",
+            "Total Est": "={{ $json.insights.totalEst }}",
+            "Collection Rate": "={{ $json.insights.collectionRate }}",
+            "Avg Score": "={{ $json.insights.avgScore }}",
+            "Tier Counts": "={{ JSON.stringify($json.insights.tierCounts) }}",
+            "Top Denials": "={{ ($json.insights.topDenialReasons||[]).join(' | ') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "f3d6711e-889b-41d7-a5e8-9655d524d49b",
+      "name": "Write Insights to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -2848,
+        -464
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TlquvcD2o2GFmtbb",
+          "name": "Sheets - Resume Scorer"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "s.vatsa2015@gmail.com",
+        "subject": "=\u2705 Clean Claim \u2014 {{ $json.fileName }} | Score: {{ $json.finalScore }}/100",
+        "message": "=<h2>\u2705 Clean Claim \u2014 Auto Submit</h2><p><b>File:</b> {{ $json.fileName }}<br><b>Score:</b> {{ $json.finalScore }}/100 | <b>Tier:</b> {{ $json.tier }}<br><b>Total Billed:</b> \u20b9{{ $json.totalBilled }} | <b>Est. Reimbursement:</b> \u20b9{{ $json.estReimbursement }}</p><p><b>Breakdown:</b> {{ $json.scoreBreakdown }}</p><p><b>Provider:</b> {{ $json.provider }} | <b>Visit:</b> {{ $json.visitDate }}</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "1312d70e-ee8a-4d9c-b871-2b90beffdd54",
+      "name": "Notify: Clean Claim",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -2624,
+        -368
+      ],
+      "webhookId": "b6c1a890-23d8-47dc-9787-46a028545e25",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Fvc7HkN2AmxZj037",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "s.vatsa2015@gmail.com",
+        "subject": "=\u26a0\ufe0f Review Required \u2014 {{ $json.fileName }} | Score: {{ $json.finalScore }}/100",
+        "message": "=<h2>\u26a0\ufe0f Human Review Required</h2><p><b>File:</b> {{ $json.fileName }}<br><b>Score:</b> {{ $json.finalScore }}/100 | <b>Denial Probability:</b> {{ ($json.denialProbability * 100).toFixed(0) }}%</p><p><b>Validation Flags:</b> {{ ($json.validationFlags||[]).join(', ') }}</p><p><b>Compliance Issues:</b> {{ ($json.complianceFlags||[]).join(', ') }}</p><p><b>Recommended Actions:</b><br>{{ ($json.recommendedActions||[]).join('<br>') }}</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "6d63b2d9-dad6-44b3-a813-5f2e5df7cb03",
+      "name": "Notify: Needs Review",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -2624,
+        -144
+      ],
+      "webhookId": "7b109a3f-9a28-4fa8-926f-88da5a0fa6f2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Fvc7HkN2AmxZj037",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "s.vatsa2015@gmail.com",
+        "subject": "=\ud83d\udea8 HIGH RISK Claim \u2014 {{ $json.fileName }} | Score: {{ $json.finalScore }}/100",
+        "message": "=<h2>\ud83d\udea8 High Risk \u2014 Hold & Correct</h2><p><b>File:</b> {{ $json.fileName }}<br><b>Score:</b> {{ $json.finalScore }}/100 | <b>Tier:</b> {{ $json.tier }}</p><p><b>Denial Probability:</b> {{ ($json.denialProbability * 100).toFixed(0) }}% | <b>Appeal Strength:</b> {{ $json.appealStrength }}</p><p><b>Critical Issues:</b><br>{{ ($json.validationFlags||[]).join('<br>') }}</p><p><b>Denial Reasons:</b><br>{{ ($json.denialReasons||[]).join('<br>') }}</p><p><b>Documentation Gaps:</b><br>{{ ($json.documentationGaps||[]).join('<br>') }}</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "44dec263-7c14-45cd-bc5d-06c968659a5e",
+      "name": "Notify: High Risk",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -2624,
+        80
+      ],
+      "webhookId": "f16cb3cd-486b-4e09-a86a-28acd622a2c8",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Fvc7HkN2AmxZj037",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "New Billing Case": {
+      "main": [
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File": {
+      "main": [
+        [
+          {
+            "node": "Copy Bill \u2192 Google Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copy Bill \u2192 Google Doc": {
+      "main": [
+        [
+          {
+            "node": "Export Bill as Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export Bill as Text": {
+      "main": [
+        [
+          {
+            "node": "Extract & Validate Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Validate Text": {
+      "main": [
+        [
+          {
+            "node": "IF: Text Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Text Valid?": {
+      "main": [
+        [
+          {
+            "node": "AI: Extract Billable Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Invalid Bill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Extract Billable Items": {
+      "main": [
+        [
+          {
+            "node": "Parse: Billable Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse: Billable Items": {
+      "main": [
+        [
+          {
+            "node": "AI: Code Mapping & Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Code Mapping & Compliance": {
+      "main": [
+        [
+          {
+            "node": "Parse: Code Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse: Code Compliance": {
+      "main": [
+        [
+          {
+            "node": "Validation Layer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation Layer": {
+      "main": [
+        [
+          {
+            "node": "AI: Denial Risk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Denial Risk": {
+      "main": [
+        [
+          {
+            "node": "Parse: Denial Risk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse: Denial Risk": {
+      "main": [
+        [
+          {
+            "node": "Scoring Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scoring Engine": {
+      "main": [
+        [
+          {
+            "node": "Insights Generator",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Decision Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insights Generator": {
+      "main": [
+        [
+          {
+            "node": "Write Insights to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision Node": {
+      "main": [
+        [
+          {
+            "node": "Store Billing Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify: Clean Claim",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store Billing Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify: Needs Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store Billing Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify: High Risk",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store Billing Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5a671160-e739-4c7b-be79-4557428054c5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4ce7153f996e926aaf17399df04d18ee5e508ca2d619b5fe793d02dcd6b11b69"
+  },
+  "id": "Rza7KZlxW2lHWqKr",
+  "tags": []
+}
